@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Aquarium Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #74ebd5 0%, #ACB6E5 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+    }
+    .glass {
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 20px;
+      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      padding: 20px;
+      width: 90%;
+      max-width: 800px;
+      margin-bottom: 20px;
+    }
+    h1, h2 {
+      color: #fff;
+      text-align: center;
+    }
+    button {
+      padding: 10px 20px;
+      margin: 5px;
+      border: none;
+      border-radius: 10px;
+      background-color: #ffffff33;
+      color: #fff;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    .status {
+      font-size: 1.1em;
+      color: #fff;
+    }
+    canvas {
+      background: #ffffff22;
+      border-radius: 10px;
+      padding: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Aquarium Dashboard</h1>
+
+  <div class="glass">
+    <h2>Sensor Status</h2>
+    <div class="status" id="floatStatus">Float Switch: Loading...</div>
+    <div class="status" id="dsTemp">DS18B20 Temperature: -- °C</div>
+    <div class="status" id="dhtTemp">DHT11 Temperature: -- °C</div>
+    <div class="status" id="dhtHum">DHT11 Humidity: -- %</div>
+    <div class="status" id="hr202">HR202 Humidity: -- %</div>
+  </div>
+
+  <div class="glass">
+    <h2>Controls</h2>
+    <button onclick="sendCommand('toggleLight')">Toggle Light</button>
+    <button onclick="sendCommand('togglePump')">Toggle Pump</button>
+    <button onclick="sendCommand('rotateServo')">Rotate Servo</button>
+  </div>
+
+  <div class="glass">
+    <h2>Temperature & Humidity Graph</h2>
+    <canvas id="tempChart" width="400" height="200"></canvas>
+    <canvas id="humChart" width="400" height="200"></canvas>
+  </div>
+
+  <script>
+    const espIP = "http://192.168.1.100"; // Replace this with your actual ESP32 IP address
+
+    async function fetchData() {
+      try {
+        const res = await fetch(`${espIP}/data`);
+        const data = await res.json();
+
+        document.getElementById('floatStatus').innerText = `Float Switch: ${data.float ? 'Water Detected' : 'No Water'}`;
+        document.getElementById('dsTemp').innerText = `DS18B20 Temperature: ${data.ds18b20} °C`;
+        document.getElementById('dhtTemp').innerText = `DHT11 Temperature: ${data.dhtTemp} °C`;
+        document.getElementById('dhtHum').innerText = `DHT11 Humidity: ${data.dhtHum} %`;
+        document.getElementById('hr202').innerText = `HR202 Humidity: ${data.hr202} %`;
+
+        updateGraphs(data);
+      } catch (err) {
+        console.error("Error fetching data", err);
+      }
+    }
+
+    function sendCommand(command) {
+      fetch(`${espIP}/${command}`);
+    }
+
+    let tempData = [];
+    let humData = [];
+    let labels = [];
+
+    const tempCtx = document.getElementById('tempChart').getContext('2d');
+    const tempChart = new Chart(tempCtx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Temperature (°C)',
+          data: tempData,
+          borderColor: '#ff6a00',
+          fill: false,
+        }]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          y: { beginAtZero: true }
+        }
+      }
+    });
+
+    const humCtx = document.getElementById('humChart').getContext('2d');
+    const humChart = new Chart(humCtx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Humidity (%)',
+          data: humData,
+          borderColor: '#0099ff',
+          fill: false,
+        }]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          y: { beginAtZero: true }
+        }
+      }
+    });
+
+    function updateGraphs(data) {
+      const time = new Date().toLocaleTimeString();
+      if (labels.length > 20) {
+        labels.shift();
+        tempData.shift();
+        humData.shift();
+      }
+      labels.push(time);
+      tempData.push(data.dhtTemp);
+      humData.push(data.dhtHum);
+      tempChart.update();
+      humChart.update();
+    }
+
+    setInterval(fetchData, 5000); // update every 5 seconds
+  </script>
+</body>
+</html>
